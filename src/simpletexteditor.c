@@ -14,6 +14,10 @@ void saveFile(char *filename, char *content){
   fclose(file);
 }
 
+void openFile(char *filename){
+   
+}
+
 int main() {
   char text[MAX_TEXT_LENGTH] = "";  // Initialize text buffer
   char input[MAX_TEXT_LENGTH];      // Input buffer
