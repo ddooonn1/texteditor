@@ -1,9 +1,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ncurses.h>
 #define MAX_FILENAME_SIZE 100 
 #define MAX_TEXT_LENGTH 1000
 #define MAX_FILES 10 
+#define CTRL_X 24
 
 void display_menu(){
   printf("\nBasic Text Editor\n");
@@ -19,7 +21,8 @@ void list_text_files(){
 
 void write_new_text(){
   char filename[MAX_FILENAME_SIZE];
-  char content[MAX_TEXT_LENGTH];
+  char buffer[MAX_TEXT_LENGTH];
+  int length = 0;
 
   printf("\nEnter your filename: \n");
   fgets(filename, sizeof(filename), stdin);
@@ -35,17 +38,47 @@ void write_new_text(){
     return;
   }
 
-  printf("\nPlease write the content to the file below: (end with a single dot on a new line)\n");
-  printf("[type 'exit' on a new line to quit]\n");
-  while (1){
-    fgets(content, MAX_TEXT_LENGTH, stdin);
-    if (strcmp(content, "exit\n") == 0) {
-      break;  // Exit loop if user types 'exit'
+  initscr();             // Initialize ncurses mode
+  raw();                 // Disable line buffering
+  keypad(stdscr, TRUE);  // Enable reading of function keys (e.g., arrow keys)
+  noecho();              // Disable automatic echoing of typed characters
+
+  int ch;
+  int x = 0, y = 0;      // Initialize cursor position
+
+  mvprintw(LINES - 2, 0, "Ctrl-X to save and exit");  // Print instruction at the bottom of the screen
+  move(y, x);            // Move cursor to the initial position
+
+  while ((ch = getch()) != CTRL_X) {  // Main loop to read user input until Ctrl-X is pressed
+    switch (ch) {
+      case KEY_BACKSPACE:
+      case 127:  // Handle backspace/delete key
+        if (x > 0) {
+          mvdelch(y, --x);  // Decrement x, then delete character at (y, x)
+          buffer[--length] = '\0';  // Decrement length and null-terminate the buffer
+        }
+        break;
+      case '\n':  // Handle newline
+        buffer[length++] = ch;  // Add newline character to buffer
+        y++;     // Move cursor to the next line
+        x = 0;   // Reset cursor to the beginning of the line
+        move(y, x);  // Move cursor to the new position
+        break;
+      default:     // Handle regular characters
+        buffer[length++] = ch;  // Add character to buffer
+        addch(ch);  // Print character to screen
+        x++;        // Move cursor to the next position
+        break;
     }
-    fprintf(file, "%s", content);
   }
 
-  fclose(file);
+  buffer[length] = '\0';  // Null-terminate the buffer
+
+  endwin();  // End ncurses mode
+
+  fprintf(file, "%s", buffer);  // Write buffer to file
+  fclose(file);  // Close the file
+
   printf("File '%s' saved successfully as a .txt file.\n", filename);
 }
 
@@ -54,6 +87,7 @@ void open_text_file(){
 
   char *fileMap[MAX_FILES];
   int fileNumber;
+  char buffer[MAX_TEXT_LENGTH];
 
   // Streamline reading all text files in the directory
   FILE *fp = popen("ls *.txt", "r");
@@ -90,20 +124,41 @@ void open_text_file(){
     printf("Error opening file.\n");
     return;
   }
-
-  printf("\n%s's content\n", filename);
-  printf("----------------\n");
-  // Print content from txt file
-  char content[MAX_TEXT_LENGTH];
-  while (fgets(content, MAX_TEXT_LENGTH, file) != NULL){
-    printf("%s", content);
-  }
-  fclose(file);
-
+ 
   // Free allocated memory
   for (int j=1; j<i; j++){
     free(fileMap[j]);
   }
+
+  int x = 0, y = 0;
+  while (fgets(buffer, sizeof(buffer), file)) {  // Read file line by line
+    mvprintw(y++, 0, "%s", buffer);  // Print each line to the screen
+  }
+  move(0, 0);  // Move cursor to the initial position
+
+  int ch;
+  while ((ch = getch()) != CTRL_X) {  // Main loop to read user input until Ctrl-X is pressed
+    switch (ch) {
+      case KEY_BACKSPACE:
+      case 127:  // Handle backspace/delete key
+        if (x > 0) {
+          mvdelch(y, --x);  // Delete character from screen
+        }
+        break;
+      case '\n':  // Handle newline
+        y++;     // Move cursor to the next line
+        x = 0;   // Reset cursor to the beginning of the line
+        move(y, x);
+        break;
+      default:     // Handle regular characters
+        addch(ch);  // Add character to the screen
+        x++;        // Move cursor to the next position
+        break;
+    }
+  }
+
+  endwin();  // End ncurses mode
+  fclose(file);  // Close the file
 }
 
 int main(){
